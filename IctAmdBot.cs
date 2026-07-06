@@ -38,6 +38,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         [NinjaScriptProperty]
         [Display(Name="Distancia Trailing Stop (Pts)", Description="Para el último contrato (Runner)", Order=3, GroupName="1. Gestión de Riesgo")]
         public int TrailingStopPoints { get; set; } = 35;
+
+        [NinjaScriptProperty]
+        [Display(Name="Pérdida Máxima Diaria ($)", Description="Detiene la operativa si la pérdida diaria supera este monto", Order=4, GroupName="1. Gestión de Riesgo")]
+        public double MaxDailyLoss { get; set; } = 1000;
         #endregion
 
         #region Propiedades Operativas
@@ -47,7 +51,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         [NinjaScriptProperty]
         [Display(Name="Hora Fin NY", Description="Hora en formato HHMMSS (Hora Chart)", Order=2, GroupName="2. Horario")]
-        public int EndTime { get; set; } = 150000; // 3:00 PM NY
+        public int EndTime { get; set; } = 120000; // 12:00 PM NY
 
         [NinjaScriptProperty]
         [Display(Name="Max Trades por Día", Description="Límite de operaciones diarias", Order=3, GroupName="2. Horario")]
@@ -92,6 +96,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool isPartialTaken = false;
         private int tradesToday = 0;
         private bool hasWonToday = false;
+        private double dailyPnL = 0;
+        private int lastTradeCount = 0;
         private double activeOteEntry = 0;
         private double activeStopLoss = 0;
         private bool isOrderPending = false;
@@ -104,6 +110,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         // Visual References
         private double londonHigh = 0;
         private double londonLow = 0;
+        
+        // PDH / PDL Tracking
+        private double customPDH = 0;
+        private double customPDL = 0;
+        private double currentDayHigh = 0;
+        private double currentDayLow = double.MaxValue;
 
         protected override void OnStateChange()
         {
@@ -112,7 +124,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Description                 = "Bot institucional basado en el modelo AMD/PO3 de ICT. Optimizado para MNQ.";
                 Name                        = "IctAmdBot";
                 Calculate                   = Calculate.OnBarClose;
-                EntriesPerDirection         = 1;
+                EntriesPerDirection         = 2;
                 EntryHandling               = EntryHandling.AllEntries;
                 IsExitOnSessionCloseStrategy= true;
                 ExitOnSessionCloseSeconds   = 30;
@@ -126,12 +138,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Default (BarsInProgress == 0) -> LTF (ej. M1)
                 AddDataSeries(Data.BarsPeriodType.Minute, 240);  // BarsInProgress == 1 (H4)
                 AddDataSeries(Data.BarsPeriodType.Minute, 15);   // BarsInProgress == 2 (M15)
+                AddDataSeries(Data.BarsPeriodType.Day, 1);       // BarsInProgress == 3 (D1) para PDH/PDL exacto
             }
         }
 
         protected override void OnBarUpdate()
         {
-            if (CurrentBars[0] < 20 || CurrentBars[1] < 20 || CurrentBars[2] < 20) return;
+            if (CurrentBars[0] < 20 || CurrentBars[1] < 20 || CurrentBars[2] < 20 || CurrentBars.Length < 4 || CurrentBars[3] < 1) return;
 
             // --- 1. Top-Down Analysis (Macro/Dirección) ---
             if (BarsInProgress == 1)
@@ -167,20 +180,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 // Dibujar Líneas Visuales
-                try
+                if (CurrentBars[0] > 50)
                 {
-                    if (CurrentBars[0] > 50)
+                    try { Draw.HorizontalLine(this, "PDH", Highs[3][1], Brushes.DodgerBlue); } catch { }
+                    try { Draw.HorizontalLine(this, "PDL", Lows[3][1], Brushes.DodgerBlue); } catch { }
+                    
+                    if (londonHigh > 0 && londonLow > 0)
                     {
-                        Draw.HorizontalLine(this, "PDH", PriorDayOHLC().PriorHigh[0], Brushes.DodgerBlue);
-                        Draw.HorizontalLine(this, "PDL", PriorDayOHLC().PriorLow[0], Brushes.DodgerBlue);
-                        
-                        if (londonHigh > 0 && londonLow > 0)
-                        {
-                            Draw.HorizontalLine(this, "LondonHigh", londonHigh, Brushes.Gold);
-                            Draw.HorizontalLine(this, "LondonLow", londonLow, Brushes.Gold);
-                        }
+                        try { Draw.HorizontalLine(this, "LondonHigh", londonHigh, Brushes.Gold); } catch { }
+                        try { Draw.HorizontalLine(this, "LondonLow", londonLow, Brushes.Gold); } catch { }
                     }
-                } catch { }
+                }
                 
                 // Filtro de Tiempo (Time & Price) - NY Session
                 bool inSession = (timeNow >= StartTime && timeNow <= EndTime);
@@ -193,6 +203,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Si no hay posición, buscar setup AMD
                 bool canTrade = tradesToday < MaxTradesPerDay;
                 if (StopOnFirstWin && hasWonToday) canTrade = false;
+                if (dailyPnL <= -MaxDailyLoss) canTrade = false;
 
                 if (Position.MarketPosition == MarketPosition.Flat && canTrade && inSession)
                 {
@@ -215,22 +226,29 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         protected override void OnExecutionUpdate(Execution execution, string executionId, double price, int quantity, MarketPosition marketPosition, string orderId, DateTime time)
         {
-            if (execution.Order != null && execution.Order.OrderState == OrderState.Filled && execution.Order.Name == "EntradaAMD")
+            if (execution.Order != null && execution.Order.OrderState == OrderState.Filled && 
+               (execution.Order.Name == "EntradaParcial" || execution.Order.Name == "EntradaRunner"))
             {
-                tradesToday++;
-                isOrderPending = false;
+                if (isOrderPending)
+                {
+                    tradesToday++;
+                    isOrderPending = false;
+                }
             }
         }
 
         protected override void OnPositionUpdate(Position position, double averagePrice, int quantity, MarketPosition marketPosition)
         {
-            if (position.MarketPosition == MarketPosition.Flat && SystemPerformance.AllTrades.Count > 0)
+            if (position.MarketPosition == MarketPosition.Flat && SystemPerformance.AllTrades.Count > lastTradeCount)
             {
-                Trade lastTrade = SystemPerformance.AllTrades[SystemPerformance.AllTrades.Count - 1];
-                if (lastTrade.ProfitCurrency > 0)
+                int newTrades = SystemPerformance.AllTrades.Count - lastTradeCount;
+                for (int i = 0; i < newTrades; i++)
                 {
-                    hasWonToday = true;
+                    Trade t = SystemPerformance.AllTrades[SystemPerformance.AllTrades.Count - 1 - i];
+                    dailyPnL += t.ProfitCurrency;
+                    if (t.ProfitCurrency > 0) hasWonToday = true;
                 }
+                lastTradeCount = SystemPerformance.AllTrades.Count;
             }
         }
 
@@ -301,25 +319,47 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (isBullishBias)
                 {
                     activeOteEntry = impulseExtremum - ((impulseExtremum - manipulationExtremum) * OteRetracement);
-                    if (Close[0] < manipulationExtremum) { ResetSetup(); return; } // Invalidación si el precio rompe el mínimo
+                    if (Low[0] < manipulationExtremum) { ResetSetup(); return; } // Invalida si la mecha rompe el mínimo
                 }
                 else if (isBearishBias)
                 {
                     activeOteEntry = impulseExtremum + ((manipulationExtremum - impulseExtremum) * OteRetracement);
-                    if (Close[0] > manipulationExtremum) { ResetSetup(); return; } // Invalidación si el precio rompe el máximo
+                    if (High[0] > manipulationExtremum) { ResetSetup(); return; } // Invalida si la mecha rompe el máximo
                 }
 
                 if (FixedContracts > 0)
                 {
-                    // Convertir dólares a Ticks físicos para el SL inicial
-                    double tickValue = Instrument.MasterInstrument.PointValue * TickSize;
-                    int slTicks = (int)Math.Round(FixedStopLoss / (FixedContracts * tickValue));
+                    // Stop Loss Estructural en el extremo (con límite máximo en dólares)
+                    double maxRiskPoints = FixedStopLoss / (FixedContracts * Instrument.MasterInstrument.PointValue);
+                    double slPrice = isBullishBias ? (manipulationExtremum - TickSize) : (manipulationExtremum + TickSize);
 
-                    SetStopLoss(CalculationMode.Ticks, slTicks);
-                    // Eliminado el Profit Target fijo para dejar correr al runner
-                    
-                    if (isBullishBias) EnterLongLimit(FixedContracts, activeOteEntry, "EntradaAMD");
-                    else EnterShortLimit(FixedContracts, activeOteEntry, "EntradaAMD");
+                    // Limita el SL al FixedStopLoss si el extremo está muy lejos
+                    if (isBullishBias) slPrice = Math.Max(slPrice, activeOteEntry - maxRiskPoints);
+                    else slPrice = Math.Min(slPrice, activeOteEntry + maxRiskPoints);
+
+                    int partialQty = (int)Math.Floor(FixedContracts * 0.80);
+                    int runnerQty = FixedContracts - partialQty;
+
+                    if (partialQty > 0)
+                    {
+                        SetStopLoss("EntradaParcial", CalculationMode.Price, slPrice, false);
+                        SetProfitTarget("EntradaParcial", CalculationMode.Ticks, PartialPoints * 4, false);
+                    }
+                    if (runnerQty > 0)
+                    {
+                        SetStopLoss("EntradaRunner", CalculationMode.Price, slPrice, false);
+                    }
+
+                    if (isBullishBias)
+                    {
+                        if (partialQty > 0) EnterLongLimit(partialQty, activeOteEntry, "EntradaParcial");
+                        if (runnerQty > 0) EnterLongLimit(runnerQty, activeOteEntry, "EntradaRunner");
+                    }
+                    else
+                    {
+                        if (partialQty > 0) EnterShortLimit(partialQty, activeOteEntry, "EntradaParcial");
+                        if (runnerQty > 0) EnterShortLimit(runnerQty, activeOteEntry, "EntradaRunner");
+                    }
                 }
                 return;
             }
@@ -363,21 +403,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 if (currentProfitPoints >= PartialPoints)
                 {
-                    int partialQty = (int)Math.Floor(Position.Quantity * 0.80); 
-                    if (partialQty > 0)
-                    {
-                        if (Position.MarketPosition == MarketPosition.Long)
-                            ExitLong(partialQty, "PartialExit", "EntradaAMD");
-                        else
-                            ExitShort(partialQty, "PartialExit", "EntradaAMD");
-                        
-                        currentStopPrice = Position.AveragePrice;
-                        SetStopLoss(CalculationMode.Price, currentStopPrice);
-                        isPartialTaken = true;
-                        
-                        highestPriceSinceEntry = High[0];
-                        lowestPriceSinceEntry = Low[0];
-                    }
+                    // El TP nativo cierra el parcial intra-vela. Aquí solo actualizamos el SL del runner.
+                    currentStopPrice = Position.AveragePrice;
+                    SetStopLoss("EntradaRunner", CalculationMode.Price, currentStopPrice, false);
+                    isPartialTaken = true;
+                    
+                    highestPriceSinceEntry = High[0];
+                    lowestPriceSinceEntry = Low[0];
                 }
             }
             else
@@ -391,7 +423,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (trailPrice > currentStopPrice)
                     {
                         currentStopPrice = trailPrice;
-                        SetStopLoss(CalculationMode.Price, currentStopPrice);
+                        SetStopLoss("EntradaRunner", CalculationMode.Price, currentStopPrice, false);
                     }
                 }
                 else if (Position.MarketPosition == MarketPosition.Short)
@@ -402,7 +434,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (trailPrice < currentStopPrice || currentStopPrice == 0)
                     {
                         currentStopPrice = trailPrice;
-                        SetStopLoss(CalculationMode.Price, currentStopPrice);
+                        SetStopLoss("EntradaRunner", CalculationMode.Price, currentStopPrice, false);
                     }
                 }
             }
@@ -418,6 +450,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             isPartialTaken = false;
             tradesToday = 0;
             hasWonToday = false;
+            dailyPnL = 0;
             activeOteEntry = 0;
             activeStopLoss = 0;
             isOrderPending = false;

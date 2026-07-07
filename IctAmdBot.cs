@@ -114,8 +114,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         // PDH / PDL Tracking
         private double customPDH = 0;
         private double customPDL = 0;
-        private double currentDayHigh = 0;
-        private double currentDayLow = double.MaxValue;
+        private double sessionHigh = 0;
+        private double sessionLow = double.MaxValue;
+        private DateTime currentCmeDate = DateTime.MinValue;
 
         protected override void OnStateChange()
         {
@@ -138,13 +139,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Default (BarsInProgress == 0) -> LTF (ej. M1)
                 AddDataSeries(Data.BarsPeriodType.Minute, 240);  // BarsInProgress == 1 (H4)
                 AddDataSeries(Data.BarsPeriodType.Minute, 15);   // BarsInProgress == 2 (M15)
-                AddDataSeries(Data.BarsPeriodType.Day, 1);       // BarsInProgress == 3 (D1) para PDH/PDL exacto
             }
         }
 
         protected override void OnBarUpdate()
         {
-            if (CurrentBars[0] < 20 || CurrentBars[1] < 20 || CurrentBars[2] < 20 || CurrentBars.Length < 4 || CurrentBars[3] < 1) return;
+            if (CurrentBars[0] < 20 || CurrentBars[1] < 20 || CurrentBars[2] < 20) return;
 
             // --- 1. Top-Down Analysis (Macro/Dirección) ---
             if (BarsInProgress == 1)
@@ -165,6 +165,27 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 int timeNow = ToTime(Time[0]);
                 
+                // CME Session Date Tracking (Starts at 18:00 EST for the next day)
+                DateTime barTime = Time[0];
+                DateTime tradingDay = (barTime.Hour >= 18) ? barTime.Date.AddDays(1) : barTime.Date;
+
+                if (currentCmeDate != tradingDay)
+                {
+                    if (currentCmeDate != DateTime.MinValue)
+                    {
+                        customPDH = sessionHigh;
+                        customPDL = sessionLow;
+                    }
+                    sessionHigh = High[0];
+                    sessionLow = Low[0];
+                    currentCmeDate = tradingDay;
+                }
+                else
+                {
+                    if (High[0] > sessionHigh) sessionHigh = High[0];
+                    if (Low[0] < sessionLow) sessionLow = Low[0];
+                }
+
                 // Reiniciar niveles de Londres al iniciar nueva sesión (6:00 PM EST)
                 if (Bars.IsFirstBarOfSession)
                 {
@@ -182,8 +203,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Dibujar Líneas Visuales
                 if (CurrentBars[0] > 50)
                 {
-                    try { Draw.HorizontalLine(this, "PDH", Highs[3][1], Brushes.DodgerBlue); } catch { }
-                    try { Draw.HorizontalLine(this, "PDL", Lows[3][1], Brushes.DodgerBlue); } catch { }
+                    if (customPDH > 0) try { Draw.HorizontalLine(this, "PDH", customPDH, Brushes.DodgerBlue); } catch { }
+                    if (customPDL > 0) try { Draw.HorizontalLine(this, "PDL", customPDL, Brushes.DodgerBlue); } catch { }
                     
                     if (londonHigh > 0 && londonLow > 0)
                     {

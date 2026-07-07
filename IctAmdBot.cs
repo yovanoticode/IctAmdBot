@@ -110,11 +110,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         // Visual References
         private double londonHigh = 0;
         private double londonLow = 0;
-        
-        // PDH / PDL Tracking
-        private double customPDH = 0;
-        private double customPDL = 0;
-        private DateTime dateOfLastCalculation = DateTime.MinValue;
 
         protected override void OnStateChange()
         {
@@ -143,13 +138,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         protected override void OnBarUpdate()
         {
             if (CurrentBars[0] < 20 || CurrentBars[1] < 20 || CurrentBars[2] < 20) return;
-
-            // Calcular PDH y PDL reales usando escaneo de gaps (1 vez al día)
-            if (CurrentBars[0] > 500 && Time[0].Date != dateOfLastCalculation)
-            {
-                CalculateTruePDHPDL();
-                dateOfLastCalculation = Time[0].Date;
-            }
 
             // --- 1. Top-Down Analysis (Macro/Dirección) ---
             if (BarsInProgress == 1)
@@ -187,8 +175,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Dibujar Líneas Visuales
                 if (CurrentBars[0] > 50)
                 {
-                    if (customPDH > 0) try { Draw.HorizontalLine(this, "PDH", customPDH, Brushes.DodgerBlue); } catch { }
-                    if (customPDL > 0) try { Draw.HorizontalLine(this, "PDL", customPDL, Brushes.DodgerBlue); } catch { }
+                    try { Draw.HorizontalLine(this, "PDH", PriorDayOHLC().PriorHigh[0], Brushes.DodgerBlue); } catch { }
+                    try { Draw.HorizontalLine(this, "PDL", PriorDayOHLC().PriorLow[0], Brushes.DodgerBlue); } catch { }
                     
                     if (londonHigh > 0 && londonLow > 0)
                     {
@@ -460,42 +448,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             highestPriceSinceEntry = 0;
             lowestPriceSinceEntry = double.MaxValue;
             currentStopPrice = 0;
-        }
-
-        private void CalculateTruePDHPDL()
-        {
-            int gapCount = 0;
-            double h = 0;
-            double l = double.MaxValue;
-            
-            for (int i = 1; i < CurrentBars[0]; i++)
-            {
-                TimeSpan diff = Time[i - 1] - Time[i];
-                
-                // Si hay un fin de semana o cierre de sesión (+45 min sin velas)
-                if (diff.TotalMinutes > 45)
-                {
-                    gapCount++;
-                }
-                
-                // Recolectar High/Low solo de la sesión previa
-                if (gapCount == 1)
-                {
-                    if (High[i] > h) h = High[i];
-                    if (Low[i] < l) l = Low[i];
-                }
-                // Terminar búsqueda al llegar a la sesión antepasada
-                else if (gapCount == 2)
-                {
-                    break;
-                }
-            }
-            
-            if (h > 0 && l < double.MaxValue)
-            {
-                customPDH = h;
-                customPDL = l;
-            }
         }
     }
 }

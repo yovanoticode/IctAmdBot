@@ -111,12 +111,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double londonHigh = 0;
         private double londonLow = 0;
         
-        // PDH / PDL Tracking
-        private double customPDH = 0;
-        private double customPDL = 0;
-        private double sessionHigh = 0;
-        private double sessionLow = double.MaxValue;
-        private DateTime currentCmeDate = DateTime.MinValue;
+
 
         protected override void OnStateChange()
         {
@@ -165,27 +160,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 int timeNow = ToTime(Time[0]);
                 
-                // CME Session Date Tracking (Starts at 18:00 EST for the next day)
-                DateTime barTime = Time[0];
-                DateTime tradingDay = (barTime.Hour >= 18) ? barTime.Date.AddDays(1) : barTime.Date;
-
-                if (currentCmeDate != tradingDay)
-                {
-                    if (currentCmeDate != DateTime.MinValue)
-                    {
-                        customPDH = sessionHigh;
-                        customPDL = sessionLow;
-                    }
-                    sessionHigh = High[0];
-                    sessionLow = Low[0];
-                    currentCmeDate = tradingDay;
-                }
-                else
-                {
-                    if (High[0] > sessionHigh) sessionHigh = High[0];
-                    if (Low[0] < sessionLow) sessionLow = Low[0];
-                }
-
                 // Reiniciar niveles de Londres al iniciar nueva sesión (6:00 PM EST)
                 if (Bars.IsFirstBarOfSession)
                 {
@@ -203,8 +177,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Dibujar Líneas Visuales
                 if (CurrentBars[0] > 50)
                 {
-                    if (customPDH > 0) try { Draw.HorizontalLine(this, "PDH", customPDH, Brushes.DodgerBlue); } catch { }
-                    if (customPDL > 0) try { Draw.HorizontalLine(this, "PDL", customPDL, Brushes.DodgerBlue); } catch { }
+                    try { Draw.HorizontalLine(this, "PDH", PriorDayOHLC().PriorHigh[0], Brushes.DodgerBlue); } catch { }
+                    try { Draw.HorizontalLine(this, "PDL", PriorDayOHLC().PriorLow[0], Brushes.DodgerBlue); } catch { }
                     
                     if (londonHigh > 0 && londonLow > 0)
                     {

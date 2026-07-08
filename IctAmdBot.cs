@@ -387,14 +387,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (!isPartialTaken)
             {
-                double currentProfitPoints = 0;
+                double maxProfitPoints = 0;
                 
                 if (Position.MarketPosition == MarketPosition.Long)
-                    currentProfitPoints = Close[0] - Position.AveragePrice;
+                    maxProfitPoints = High[0] - Position.AveragePrice;
                 else if (Position.MarketPosition == MarketPosition.Short)
-                    currentProfitPoints = Position.AveragePrice - Close[0];
+                    maxProfitPoints = Position.AveragePrice - Low[0];
 
-                if (currentProfitPoints >= PartialPoints)
+                if (maxProfitPoints >= PartialPoints)
                 {
                     // El TP nativo cierra el parcial intra-vela. Aquí solo actualizamos el SL del runner.
                     currentStopPrice = Position.AveragePrice;

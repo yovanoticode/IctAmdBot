@@ -333,12 +333,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 if (isBullishBias)
                 {
-                    activeOteEntry = impulseExtremum - ((impulseExtremum - manipulationExtremum) * OteRetracement);
+                    activeOteEntry = Instrument.MasterInstrument.RoundToTickSize(impulseExtremum - ((impulseExtremum - manipulationExtremum) * OteRetracement));
                     if (Low[0] < manipulationExtremum) { ResetSetup(); return; } // Invalida si la mecha rompe el mínimo
                 }
                 else if (isBearishBias)
                 {
-                    activeOteEntry = impulseExtremum + ((manipulationExtremum - impulseExtremum) * OteRetracement);
+                    activeOteEntry = Instrument.MasterInstrument.RoundToTickSize(impulseExtremum + ((manipulationExtremum - impulseExtremum) * OteRetracement));
                     if (High[0] > manipulationExtremum) { ResetSetup(); return; } // Invalida si la mecha rompe el máximo
                 }
 
@@ -387,7 +387,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 
                 if (fvgAlcista && trueDisplacement && momentumM1)
                 {
-                    activeOteEntry = impulseExtremum - ((impulseExtremum - manipulationExtremum) * OteRetracement); 
+                    activeOteEntry = Instrument.MasterInstrument.RoundToTickSize(impulseExtremum - ((impulseExtremum - manipulationExtremum) * OteRetracement)); 
                     isOrderPending = true;
                 }
             }
@@ -399,7 +399,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 
                 if (fvgBajista && trueDisplacement && momentumM1)
                 {
-                    activeOteEntry = impulseExtremum + ((manipulationExtremum - impulseExtremum) * OteRetracement);
+                    activeOteEntry = Instrument.MasterInstrument.RoundToTickSize(impulseExtremum + ((manipulationExtremum - impulseExtremum) * OteRetracement));
                     isOrderPending = true;
                 }
             }

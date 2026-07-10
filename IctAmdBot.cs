@@ -110,6 +110,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         // Visual References
         private double londonHigh = 0;
         private double londonLow = 0;
+        
+        // Orders Tracking
+        private Order partialEntryOrder = null;
+        private Order runnerEntryOrder = null;
 
         protected override void OnStateChange()
         {
@@ -227,6 +231,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                     tradesToday++;
                     isOrderPending = false;
                 }
+            }
+        }
+
+        protected override void OnOrderUpdate(Order order, double limitPrice, double stopPrice, int quantity, int filled, double averageFillPrice, OrderState orderState, DateTime time, ErrorCode error, string nativeError)
+        {
+            if (order.Name == "EntradaParcial")
+            {
+                if (orderState == OrderState.Working || orderState == OrderState.Accepted)
+                    partialEntryOrder = order;
+                else if (orderState == OrderState.Filled || orderState == OrderState.Cancelled || orderState == OrderState.Rejected)
+                    partialEntryOrder = null;
+            }
+            else if (order.Name == "EntradaRunner")
+            {
+                if (orderState == OrderState.Working || orderState == OrderState.Accepted)
+                    runnerEntryOrder = order;
+                else if (orderState == OrderState.Filled || orderState == OrderState.Cancelled || orderState == OrderState.Rejected)
+                    runnerEntryOrder = null;
             }
         }
 
@@ -448,6 +470,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             highestPriceSinceEntry = 0;
             lowestPriceSinceEntry = double.MaxValue;
             currentStopPrice = 0;
+            
+            if (partialEntryOrder != null && partialEntryOrder.OrderState == OrderState.Working)
+                CancelOrder(partialEntryOrder);
+                
+            if (runnerEntryOrder != null && runnerEntryOrder.OrderState == OrderState.Working)
+                CancelOrder(runnerEntryOrder);
         }
     }
 }

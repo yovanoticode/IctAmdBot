@@ -192,7 +192,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Filtro de Tiempo (Time & Price) - NY Session
                 bool inSession = (timeNow >= StartTime && timeNow <= EndTime);
 
-                if (!inSession)
+                if (!inSession && Position.MarketPosition == MarketPosition.Flat)
                 {
                     ResetSetup();
                 }

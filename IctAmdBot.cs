@@ -375,14 +375,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (partialQty > 0) 
                         {
                             if (partialEntryOrder != null && (partialEntryOrder.OrderState == OrderState.Working || partialEntryOrder.OrderState == OrderState.Accepted) && partialEntryOrder.LimitPrice != activeOteEntry)
-                                ChangeOrder(partialEntryOrder, partialQty, activeOteEntry, 0);
+                                EnterLongLimit(partialQty, activeOteEntry, "EntradaParcial");
                             else if (partialEntryOrder == null)
                                 EnterLongLimit(partialQty, activeOteEntry, "EntradaParcial");
                         }
                         if (runnerQty > 0)
                         {
                             if (runnerEntryOrder != null && (runnerEntryOrder.OrderState == OrderState.Working || runnerEntryOrder.OrderState == OrderState.Accepted) && runnerEntryOrder.LimitPrice != activeOteEntry)
-                                ChangeOrder(runnerEntryOrder, runnerQty, activeOteEntry, 0);
+                                EnterLongLimit(runnerQty, activeOteEntry, "EntradaRunner");
                             else if (runnerEntryOrder == null)
                                 EnterLongLimit(runnerQty, activeOteEntry, "EntradaRunner");
                         }
@@ -392,14 +392,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (partialQty > 0) 
                         {
                             if (partialEntryOrder != null && (partialEntryOrder.OrderState == OrderState.Working || partialEntryOrder.OrderState == OrderState.Accepted) && partialEntryOrder.LimitPrice != activeOteEntry)
-                                ChangeOrder(partialEntryOrder, partialQty, activeOteEntry, 0);
+                                EnterShortLimit(partialQty, activeOteEntry, "EntradaParcial");
                             else if (partialEntryOrder == null)
                                 EnterShortLimit(partialQty, activeOteEntry, "EntradaParcial");
                         }
                         if (runnerQty > 0)
                         {
                             if (runnerEntryOrder != null && (runnerEntryOrder.OrderState == OrderState.Working || runnerEntryOrder.OrderState == OrderState.Accepted) && runnerEntryOrder.LimitPrice != activeOteEntry)
-                                ChangeOrder(runnerEntryOrder, runnerQty, activeOteEntry, 0);
+                                EnterShortLimit(runnerQty, activeOteEntry, "EntradaRunner");
                             else if (runnerEntryOrder == null)
                                 EnterShortLimit(runnerQty, activeOteEntry, "EntradaRunner");
                         }

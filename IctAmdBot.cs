@@ -355,14 +355,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                     int partialQty = (int)Math.Floor(FixedContracts * 0.80);
                     int runnerQty = FixedContracts - partialQty;
 
-                    if (partialQty > 0)
+                    if (partialQty > 0 && currentStopPrice != slPrice)
                     {
                         SetStopLoss("EntradaParcial", CalculationMode.Price, slPrice, false);
                         SetProfitTarget("EntradaParcial", CalculationMode.Ticks, PartialPoints * 4, false);
                     }
-                    if (runnerQty > 0)
+                    if (runnerQty > 0 && currentStopPrice != slPrice)
                     {
                         SetStopLoss("EntradaRunner", CalculationMode.Price, slPrice, false);
+                    }
+                    
+                    if (currentStopPrice != slPrice)
+                    {
+                        currentStopPrice = slPrice;
                     }
 
                     if (isBullishBias)

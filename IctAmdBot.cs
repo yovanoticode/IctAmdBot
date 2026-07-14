@@ -190,7 +190,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 
                 // Filtro de Tiempo (Time & Price) - NY Session
-                bool inSession = (timeNow >= StartTime && timeNow <= EndTime);
+                bool inSession = (timeNow >= StartTime && timeNow < EndTime);
 
                 if (!inSession && Position.MarketPosition == MarketPosition.Flat)
                 {
@@ -500,10 +500,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             lowestPriceSinceEntry = double.MaxValue;
             currentStopPrice = 0;
             
-            if (partialEntryOrder != null && partialEntryOrder.OrderState == OrderState.Working)
+            if (partialEntryOrder != null && (partialEntryOrder.OrderState == OrderState.Working || partialEntryOrder.OrderState == OrderState.Accepted))
                 CancelOrder(partialEntryOrder);
                 
-            if (runnerEntryOrder != null && runnerEntryOrder.OrderState == OrderState.Working)
+            if (runnerEntryOrder != null && (runnerEntryOrder.OrderState == OrderState.Working || runnerEntryOrder.OrderState == OrderState.Accepted))
                 CancelOrder(runnerEntryOrder);
         }
     }

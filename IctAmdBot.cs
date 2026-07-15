@@ -241,14 +241,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (orderState == OrderState.Working || orderState == OrderState.Accepted)
                     partialEntryOrder = order;
                 else if (orderState == OrderState.Filled || orderState == OrderState.Cancelled || orderState == OrderState.Rejected)
-                    partialEntryOrder = null;
+                {
+                    if (partialEntryOrder == null || partialEntryOrder == order)
+                        partialEntryOrder = null;
+                }
             }
             else if (order.Name == "EntradaRunner")
             {
                 if (orderState == OrderState.Working || orderState == OrderState.Accepted)
                     runnerEntryOrder = order;
                 else if (orderState == OrderState.Filled || orderState == OrderState.Cancelled || orderState == OrderState.Rejected)
-                    runnerEntryOrder = null;
+                {
+                    if (runnerEntryOrder == null || runnerEntryOrder == order)
+                        runnerEntryOrder = null;
+                }
             }
         }
 

@@ -242,6 +242,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     partialEntryOrder = order;
                 else if (orderState == OrderState.Filled || orderState == OrderState.Cancelled || orderState == OrderState.Rejected)
                 {
+                    if (orderState == OrderState.Cancelled) 
+                        Print(Time[0] + " - [OnOrderUpdate] Orden Parcial Cancelada por el Broker/NinjaTrader.");
+                    
                     if (partialEntryOrder == null || partialEntryOrder == order)
                         partialEntryOrder = null;
                 }
@@ -252,6 +255,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     runnerEntryOrder = order;
                 else if (orderState == OrderState.Filled || orderState == OrderState.Cancelled || orderState == OrderState.Rejected)
                 {
+                    if (orderState == OrderState.Cancelled) 
+                        Print(Time[0] + " - [OnOrderUpdate] Orden Runner Cancelada por el Broker/NinjaTrader.");
+                    
                     if (runnerEntryOrder == null || runnerEntryOrder == order)
                         runnerEntryOrder = null;
                 }
@@ -340,12 +346,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (isBullishBias)
                 {
                     activeOteEntry = Instrument.MasterInstrument.RoundToTickSize(impulseExtremum - ((impulseExtremum - manipulationExtremum) * OteRetracement));
-                    if (Low[0] < manipulationExtremum) { ResetSetup(); return; } // Invalida si la mecha rompe el mínimo
+                    if (Low[0] < manipulationExtremum) { 
+                        Print(Time[0] + " - [CheckManipulation] Invalida Buy Setup: Low[0] (" + Low[0] + ") < manipulationExtremum (" + manipulationExtremum + ")");
+                        ResetSetup(); 
+                        return; 
+                    } // Invalida si la mecha rompe el mínimo
                 }
                 else if (isBearishBias)
                 {
                     activeOteEntry = Instrument.MasterInstrument.RoundToTickSize(impulseExtremum + ((manipulationExtremum - impulseExtremum) * OteRetracement));
-                    if (High[0] > manipulationExtremum) { ResetSetup(); return; } // Invalida si la mecha rompe el máximo
+                    if (High[0] > manipulationExtremum) { 
+                        Print(Time[0] + " - [CheckManipulation] Invalida Sell Setup: High[0] (" + High[0] + ") > manipulationExtremum (" + manipulationExtremum + ")");
+                        ResetSetup(); 
+                        return; 
+                    } // Invalida si la mecha rompe el máximo
                 }
 
                 if (FixedContracts > 0)
@@ -492,6 +506,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void ResetSetup()
         {
+            Print(Time[0].ToString() + " - [ResetSetup] Ejecutando ResetSetup() y cancelando órdenes pendientes.");
             manipulationOccurred = false;
             manipulationExtremum = 0;
             impulseExtremum = 0;

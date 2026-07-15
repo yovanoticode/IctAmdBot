@@ -349,8 +349,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double slPrice = isBullishBias ? (manipulationExtremum - TickSize) : (manipulationExtremum + TickSize);
 
                     // Limita el SL al FixedStopLoss si el extremo está muy lejos
-                    if (isBullishBias) slPrice = Math.Max(slPrice, activeOteEntry - maxRiskPoints);
-                    else slPrice = Math.Min(slPrice, activeOteEntry + maxRiskPoints);
+                    if (isBullishBias) slPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Max(slPrice, activeOteEntry - maxRiskPoints));
+                    else slPrice = Instrument.MasterInstrument.RoundToTickSize(Math.Min(slPrice, activeOteEntry + maxRiskPoints));
 
                     int partialQty = (int)Math.Floor(FixedContracts * 0.80);
                     int runnerQty = FixedContracts - partialQty;

@@ -29,7 +29,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region Propiedades de Riesgo (Fijo)
         [NinjaScriptProperty]
         [Display(Name="Contratos Fijos", Description="Cantidad fija de contratos", Order=1, GroupName="1. Gestión de Riesgo")]
-        public int FixedContracts { get; set; } = 5;
+        public int FixedContracts { get; set; } = 10;
 
         [NinjaScriptProperty]
         [Display(Name="Stop Loss ($)", Description="Stop loss total en dólares", Order=2, GroupName="1. Gestión de Riesgo")]
@@ -187,6 +187,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                         try { Draw.HorizontalLine(this, "LondonHigh", londonHigh, Brushes.Gold); } catch { }
                         try { Draw.HorizontalLine(this, "LondonLow", londonLow, Brushes.Gold); } catch { }
                     }
+
+                    // --- NUEVA LÓGICA INSTITUCIONAL ICT ---
+                    // El bot caza el nivel más cercano al precio
+                    double pdh = PriorDayOHLC().PriorHigh[0];
+                    double pdl = PriorDayOHLC().PriorLow[0];
+                    
+                    // BSL (Buy Side Liquidity) - El más bajo entre PDH y LondonHigh
+                    if (londonHigh > 0) m15BSL = Math.Min(londonHigh, pdh);
+                    else m15BSL = pdh;
+                    
+                    // SSL (Sell Side Liquidity) - El más alto entre PDL y LondonLow
+                    if (londonLow > 0) m15SSL = Math.Max(londonLow, pdl);
+                    else m15SSL = pdl;
                 }
                 
                 // Filtro de Tiempo (Time & Price) - NY Session
@@ -287,13 +300,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             
             isBullishBias = emaFast > emaSlow;
             isBearishBias = emaFast < emaSlow;
+            
+            string biasText = isBullishBias ? "BIAS H4: ALCISTA (COMPRAS)" : (isBearishBias ? "BIAS H4: BAJISTA (VENTAS)" : "BIAS H4: NEUTRAL");
+            Brush biasColor = isBullishBias ? Brushes.LimeGreen : (isBearishBias ? Brushes.Red : Brushes.Gray);
+            
+            Draw.TextFixed(this, "DailyBiasText", biasText, TextPosition.TopRight, biasColor, new SimpleFont("Arial", 14) { Bold = true }, Brushes.Transparent, Brushes.Transparent, 0);
         }
 
         private void IdentifyLiquidityPools()
         {
-            // Identificar máximos y mínimos previos (Liquidity Pools) en M15
-            m15BSL = MAX(High, Math.Max(1, LiquidityLookback))[1]; // Buy Side Liquidity
-            m15SSL = MIN(Low, Math.Max(1, LiquidityLookback))[1];  // Sell Side Liquidity
+            // El cálculo de liquidez ahora se hace directamente en OnBarUpdate usando PDH/PDL y London High/Low
+            // Ya no usamos el LiquidityLookback ciego.
         }
 
         private void CheckManipulation()
